@@ -1879,19 +1879,24 @@ def check_results_dir(config,
       files = list_files_recursively(division, submitter)
 
       # Check symbolic links
-      symbolic_links = [f for f in files if os.path.islink(f)]
-      if len(symbolic_links) > 0:
+      broken_symbolic_links = [f for f in files if os.path.islink(f) and not os.path.exists(os.readlink(f))]
+      if len(broken_symbolic_links) > 0:
         log.error(
-          "%s/%s contains symbolic links: %s",
+          "%s/%s contains broken symbolic links: %s",
           division,
           submitter,
-          symbolic_links,
+          broken_symbolic_links,
         )
         results[f"{division}/{submitter}"] = None
         continue
 
       # Check for files over 50 MB
-      files_over_size_limit = [f for f in files if os.path.getsize(f) > FILE_SIZE_LIMIT_MB * MB_TO_BYTES]
+      files_over_size_limit = [
+        f
+        for f in files
+        if not os.path.islink(f)
+        and os.path.getsize(f) > FILE_SIZE_LIMIT_MB * MB_TO_BYTES
+      ]
       if len(files_over_size_limit) > 0:
         log.error(
           "%s/%s contains files with size greater than 50 MB: %s",
