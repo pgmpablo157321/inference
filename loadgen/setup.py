@@ -69,7 +69,7 @@ mlperf_loadgen_headers = public_headers + lib_headers
 mlperf_loadgen_sources_no_gen = lib_sources + lib_bindings
 mlperf_loadgen_sources = (mlperf_loadgen_sources_no_gen +
                           [generated_version_source_filename])
-mlperf_long_description = (this_directory / "README.md").read_text()
+mlperf_long_description = (this_directory / "README.md").read_text(encoding="utf-8")
 
 
 mlperf_loadgen_module = Extension(
@@ -80,7 +80,7 @@ mlperf_loadgen_module = Extension(
         depends=mlperf_loadgen_headers)
 
 setup(name="mlperf_loadgen",
-      version="2.1",
+      version="2.1.2",
       description="MLPerf Inference LoadGen python bindings",
       url="https://mlcommons.org/",
       ext_modules=[mlperf_loadgen_module],

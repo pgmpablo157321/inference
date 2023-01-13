@@ -1,8 +1,10 @@
 name: Build loadgen wheels and release them into PYPI
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: ["master"]
+    paths:
+      - loadgen/**
 
 jobs:
   build_wheels:
@@ -29,11 +31,11 @@ jobs:
         run: python -m cibuildwheel loadgen/ --output-dir wheels
         env:
           CIBW_ENVIRONMENT: "CFLAGS='-std=c++14'"
-          CIBW_BUILD: 'cp3{6,7,8,9,10}-*'
+          CIBW_BUILD: 'cp3{7,8,9}-*'
 
       - uses: actions/upload-artifact@v3
         with:
           path: ./wheels/*.whl 
 
       - name: Publish package to PyPI
-        run: python -m twine upload wheels/* -u __token__ -p ${{ secrets.PYPI_API_TOKEN }}
+        run: python -m twine upload wheels/* --repository-url https://test.pypi.org/legacy/ -u __token__ -p ${{ secrets.PYPI_API_TOKEN }}
