@@ -339,7 +339,7 @@ class DlrmPostProcess:
             # we could do this on the output of predict function in backend_pytorch_native.py
             result = results[idx].detach().cpu()
             target = expected[idx]
-            processed_results.append([result, target])
+            processed_results.append([result.numpy().tolist(), target.numpy().tolist()])
             # debug prints
             # print(result)
             # print(expected[idx])
