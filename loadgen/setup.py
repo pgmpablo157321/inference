@@ -28,6 +28,7 @@ from setuptools import Extension
 from setuptools import setup
 from version_generator import generate_loadgen_version_definitions
 from pathlib import Path
+import sys
 
 generated_version_source_filename = "generated/version_generated.cc"
 generate_loadgen_version_definitions(generated_version_source_filename, ".")
@@ -79,7 +80,12 @@ mlperf_loadgen_module = Extension(
         sources=mlperf_loadgen_sources,
         depends=mlperf_loadgen_headers)
 
-setup(name="mlperf_loadgen",
+if(sys.argv[1] == "bdist_wheel"):
+  name = "py_mlperf_loadgen"
+else:
+  name = "mlperf_loadgen"
+
+setup(name=name,
       version="3.0",
       description="MLPerf Inference LoadGen python bindings",
       url="https://mlcommons.org/",
