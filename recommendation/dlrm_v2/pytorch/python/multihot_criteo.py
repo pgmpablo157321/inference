@@ -256,7 +256,7 @@ class MultihotCriteo(Dataset):
                 e = self.random_offsets[l + 1]
 
             ls = [i for i in range(s, e)]
-            self.items_in_memory[l] = self.test_data.load_batch(ls)
+            self.items_in_memory[l] = ls
             self.item_sizes[l] = len(ls)
 
         self.last_loaded = time.time()
@@ -267,7 +267,7 @@ class MultihotCriteo(Dataset):
         idx_offsets = [0]
         for item in id_list:
             idx_offsets.append(idx_offsets[-1] + self.item_sizes[item])
-        return [self.items_in_memory[item] for item in id_list], idx_offsets
+        return [self.test_data.load_batch(self.items_in_memory[item]) for item in id_list], idx_offsets
     
     def get_labels(self, sample):
         if isinstance(sample, list):
