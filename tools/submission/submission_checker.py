@@ -1159,6 +1159,16 @@ RESULT_FIELD_NEW = {
     }
 }
 
+ADDITIONAL_FIELDS = {
+    "v3.1": {
+        "Offline": [],
+        "SingleStream": [],
+        "MultiStreamLegacy": [],
+        "MultiStream": [],
+        "Server": ["result_completed_samples_per_sec"],
+    }
+}
+
 ACC_PATTERN = {
     "acc": r"^accuracy=([\d\.]+).*",
     "AUC": r"^AUC=([\d\.]+).*",
@@ -1672,6 +1682,7 @@ def check_performance_dir(
             else scenario
         )
         res = float(mlperf_log[RESULT_FIELD_NEW[config.version][scenario_for_res]])
+        add_fields = {e:float(mlperf_log[e]) for e in ADDITIONAL_FIELDS[config.version][scenario_for_res]}
         latency_99_percentile = mlperf_log["result_99.00_percentile_latency_ns"]
         latency_mean = mlperf_log["result_mean_latency_ns"]
         if scenario in ["MultiStream"]:
@@ -1892,7 +1903,7 @@ def check_performance_dir(
             )
             is_valid = False
 
-    return is_valid, res, inferred
+    return is_valid, res, inferred, add_fields
 
 
 def get_power_metric(config, scenario_fixed, log_path, is_valid, res):
@@ -2661,7 +2672,7 @@ def check_results_dir(
                                 continue
 
                             try:
-                                is_valid, r, is_inferred = check_performance_dir(
+                                is_valid, r, is_inferred, add_fields = check_performance_dir(
                                     config,
                                     mlperf_model,
                                     perf_path,
@@ -2670,6 +2681,7 @@ def check_results_dir(
                                     system_json,
                                     has_power,
                                 )
+                                reference_perf = r
                                 if is_inferred:
                                     inferred = 1
                                     log.info(
@@ -2774,6 +2786,12 @@ def check_results_dir(
                                 log.error("no compliance dir for %s", name)
                                 results[name] = None
                             else:
+                                if scenario == "Server":
+                                    reference_perf = add_fields["result_completed_samples_per_sec"]
+                                elif scenario in ["MultiStream", "SingleStream"]:
+                                    reference_perf *= MS_TO_NS
+                                log.info("scenario fixed: %s, scenario: %s", scenario_fixed, scenario)
+                                # log.info("scenario fixed: %s, scenario: %s", scenario_fixed, scenario)
                                 if not check_compliance_dir(
                                     compliance_dir,
                                     mlperf_model,
@@ -2781,6 +2799,7 @@ def check_results_dir(
                                     config,
                                     division,
                                     system_json,
+                                    reference_perf
                                 ):
                                     log.error(
                                         "compliance dir %s has issues", compliance_dir
@@ -3043,7 +3062,7 @@ def check_measurement_dir(
     return is_valid
 
 
-def check_compliance_perf_dir(test_dir):
+def check_compliance_perf_dir(test_dir, reference_perf):
     is_valid = False
 
     fname = os.path.join(test_dir, "verify_performance.txt")
@@ -3057,6 +3076,13 @@ def check_compliance_perf_dir(test_dir):
                 if "TEST PASS" in line:
                     is_valid = True
                     break
+                if "reference score" in line and "TEST01" in test_dir:
+                    ref_reported = float(re.findall(r"[-+]?(?:\d*\.*\d+)", line)[0])
+                    if abs(ref_reported - reference_perf) > 1:
+                        log.error("Reference score reported in compliance: %s is different "
+                                  "that the one in the results: %s", ref_reported, reference_perf)
+                        is_valid = False
+                        break
         if is_valid == False:
             log.error("Compliance test performance check in %s failed", test_dir)
 
@@ -3175,7 +3201,7 @@ def check_compliance_acc_dir(test_dir, model, config):
 
 
 def check_compliance_dir(
-    compliance_dir, model, scenario, config, division, system_json
+    compliance_dir, model, scenario, config, division, system_json, reference_perf
 ):
     compliance_perf_pass = True
     compliance_perf_dir_pass = True
@@ -3218,7 +3244,7 @@ def check_compliance_dir(
                 compliance_perf_dir = os.path.join(
                     compliance_dir, test, "performance", "run_1"
                 )
-                compliance_perf_valid, r, is_inferred = check_performance_dir(
+                compliance_perf_valid, r, is_inferred, _ = check_performance_dir(
                     config, model, compliance_perf_dir, scenario, division, system_json
                 )
                 if is_inferred:
@@ -3232,7 +3258,7 @@ def check_compliance_dir(
                 is_valid, r = False, None
             compliance_perf_pass = (
                 compliance_perf_pass
-                and check_compliance_perf_dir(test_dir)
+                and check_compliance_perf_dir(test_dir, reference_perf)
                 and compliance_perf_valid
             )
 
