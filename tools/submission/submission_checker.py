@@ -2781,6 +2781,7 @@ def check_results_dir(
                                     config,
                                     division,
                                     system_json,
+                                    r
                                 ):
                                     log.error(
                                         "compliance dir %s has issues", compliance_dir
@@ -3043,7 +3044,7 @@ def check_measurement_dir(
     return is_valid
 
 
-def check_compliance_perf_dir(test_dir):
+def check_compliance_perf_dir(test_dir, reference_perf):
     is_valid = False
 
     fname = os.path.join(test_dir, "verify_performance.txt")
@@ -3057,6 +3058,13 @@ def check_compliance_perf_dir(test_dir):
                 if "TEST PASS" in line:
                     is_valid = True
                     break
+                if "reference score" in line and "TEST01" in test_dir:
+                    ref_reported = float(re.findall(r"[-+]?(?:\d*\.*\d+)", line)[0])
+                    if (ref_reported != reference_perf):
+                        log.error("Reference score reported in compliance: %s is different "
+                                  "that the one in the results: %s", reference_perf, ref_reported)
+                        is_valid = False
+                        break
         if is_valid == False:
             log.error("Compliance test performance check in %s failed", test_dir)
 
@@ -3175,7 +3183,7 @@ def check_compliance_acc_dir(test_dir, model, config):
 
 
 def check_compliance_dir(
-    compliance_dir, model, scenario, config, division, system_json
+    compliance_dir, model, scenario, config, division, system_json, reference_perf
 ):
     compliance_perf_pass = True
     compliance_perf_dir_pass = True
@@ -3232,7 +3240,7 @@ def check_compliance_dir(
                 is_valid, r = False, None
             compliance_perf_pass = (
                 compliance_perf_pass
-                and check_compliance_perf_dir(test_dir)
+                and check_compliance_perf_dir(test_dir, reference_perf)
                 and compliance_perf_valid
             )
 

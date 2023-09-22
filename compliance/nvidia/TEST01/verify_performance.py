@@ -61,7 +61,7 @@ def main():
                 continue
 
         if ref_mode == "Server":
-            if re.match("Completed samples per second", line):
+            if re.match("Scheduled samples per second", line):
                 ref_score = line.split(": ",1)[1].strip()
                 continue
             if re.match("target_latency (ns)", line):
@@ -99,7 +99,7 @@ def main():
                 continue
 
         if test_mode == "Server":
-            if re.match("Completed samples per second", line):
+            if re.match("Scheduled samples per second", line):
                 test_score = line.split(": ",1)[1].strip()
                 continue
             if re.match("target_latency (ns)", line):
