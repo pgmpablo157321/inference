@@ -132,6 +132,36 @@ struct ResponseDelegateDetailed : public ResponseDelegate {
     });
   }
 
+    void TokenComplete(SampleMetadata* sample, QuerySampleResponse* response,
+                      PerfClock::time_point complete_begin_time,
+                      const ResponseCallback& response_cb) override {
+    // Using a raw pointer here should help us hit the std::function
+    // small buffer optimization code path when we aren't copying data.
+    // For some reason, using std::unique_ptr<std::vector> wasn't moving
+    // into the lambda; even with C++14.
+    Log([sample, complete_begin_time](AsyncLog& log) {
+      QueryMetadata* query = sample->query_metadata;
+      DurationGeneratorNs sched{query->scheduled_time};
+      if (scenario == TestScenario::Server) {
+        DurationGeneratorNs issued{query->issued_start_time};
+        log.TraceCounterEvent("Token_Latency", query->scheduled_time, "issue_delay",
+                              sched.delta(query->issued_start_time),
+                              "issue_to_done",
+                              issued.delta(complete_begin_time));
+      }else{
+        log.TraceSample("Token", sample->sequence_id, query->scheduled_time,
+                      complete_begin_time, "sample_seq", sample->sequence_id,
+                      "query_seq", query->sequence_id, "sample_idx",
+                      sample->sample_index, "issue_start_ns",
+                      sched.delta(query->issued_start_time), "complete_ns",
+                      sched.delta(complete_begin_time));
+      }
+      QuerySampleLatency latency = sched.delta(complete_begin_time);
+      log.RecordTokenCompletion(sample->sequence_id, complete_begin_time,
+                                 latency);
+    });
+  }
+
   void QueryComplete() override {
     // We only need to track outstanding queries in the server scenario to
     // detect when the SUT has fallen too far behind.
@@ -482,6 +512,12 @@ PerformanceResult IssueQueries(SystemUnderTest* sut,
   std::vector<QuerySampleLatency> sample_latencies(
       GlobalLogger().GetLatenciesBlocking(expected_latencies));
 
+  std::vector<std::vector<QuerySampleLatency>> token_latencies(
+    GlobalLogger().GetTokenLatencies(expected_latencies));
+
+  // std::cout << "Loadgen samples overhead: " << mlperf::samples_overhead_acum << "\n";
+  // std::cout << "Loadgen tokens overhead: " << mlperf::tokens_overhead_acum << "\n";
+
   // Log contention counters after every test as a sanity check.
   GlobalLogger().LogContentionAndAllocations();
 
@@ -528,13 +564,25 @@ PerformanceResult IssueQueries(SystemUnderTest* sut,
     }
   }
 
-  return PerformanceResult{std::move(sample_latencies),
+  if (settings.use_token_latencies){
+    return TokenPerformanceResults{
+      PerformanceResult{std::move(sample_latencies),
                            std::move(query_latencies),
                            queries_issued,
                            max_latency,
                            final_query_scheduled_time,
                            final_query_issued_time,
-                           final_query_all_samples_done_time};
+                           final_query_all_samples_done_time},
+      token_latencies
+    };
+  }
+  return PerformanceResult{std::move(sample_latencies),
+                          std::move(query_latencies),
+                          queries_issued,
+                          max_latency,
+                          final_query_scheduled_time,
+                          final_query_issued_time,
+                          final_query_all_samples_done_time};
 }
 
 void LoadSamplesToRam(QuerySampleLibrary* qsl,
@@ -1090,6 +1138,8 @@ void StartTest(SystemUnderTest* sut, QuerySampleLibrary* qsl,
                const TestSettings& requested_settings,
                const LogSettings& log_settings,
                const std::string audit_config_filename) {
+  // mlperf::samples_overhead_acum = 0;
+  // mlperf::tokens_overhead_acum = 0;
   GlobalLogger().StartIOThread();
 
   const std::string test_date_time = CurrentDateTimeISO8601();
@@ -1246,6 +1296,29 @@ void QuerySamplesComplete(QuerySampleResponse* responses, size_t response_count,
     query->response_delegate->SampleComplete(sample, response, timestamp,
                                              response_cb);
   }
+  PerfClock::time_point end_timestamp = PerfClock::now();
+  // mlperf::samples_overhead_acum += (end_timestamp - timestamp).count();
+}
+
+void TokensComplete(QuerySampleResponse* responses, size_t response_count,
+                          const ResponseCallback& response_cb) {
+  PerfClock::time_point timestamp = PerfClock::now();
+
+  auto tracer = MakeScopedTracer(
+      [](AsyncTrace& trace) { trace("TokensComplete"); });
+
+  const QuerySampleResponse* end = responses + response_count;
+
+  // Log samples.
+  for (QuerySampleResponse* response = responses; response < end; response++) {
+    loadgen::SampleMetadata* sample =
+        reinterpret_cast<loadgen::SampleMetadata*>(response->id);
+    loadgen::QueryMetadata* query = sample->query_metadata;
+    query->response_delegate->TokenComplete(sample, response, timestamp,
+                                             response_cb);
+  }
+  PerfClock::time_point end_timestamp = PerfClock::now();
+  // mlperf::tokens_overhead_acum += (end_timestamp - timestamp).count();
 }
 
 }  // namespace mlperf

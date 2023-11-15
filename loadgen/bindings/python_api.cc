@@ -258,6 +258,12 @@ void QuerySamplesComplete(std::vector<QuerySampleResponse> responses,
   mlperf::QuerySamplesComplete(responses.data(), responses.size(), response_cb);
 }
 
+void TokensComplete(std::vector<QuerySampleResponse> responses,
+                          ResponseCallback response_cb = {}) {
+  pybind11::gil_scoped_release gil_releaser;
+  mlperf::TokensComplete(responses.data(), responses.size(), response_cb);
+}
+
 PYBIND11_MODULE(mlperf_loadgen, m) {
   m.doc() = "MLPerf Inference load generator.";
 
@@ -325,10 +331,11 @@ PYBIND11_MODULE(mlperf_loadgen, m) {
                      &TestSettings::performance_sample_count_override)
       .def_readwrite("test05",
                      &TestSettings::test05)
-      .def_readwrite("test05_qsl_rng_seed", &TestSettings::qsl_rng_seed)
+      .def_readwrite("test05_qsl_rng_seed", &TestSettings::test05_qsl_rng_seed)
       .def_readwrite("test05_sample_index_rng_seed",
-                     &TestSettings::sample_index_rng_seed)
-      .def_readwrite("test05_schedule_rng_seed", &TestSettings::schedule_rng_seed)
+                     &TestSettings::test05_sample_index_rng_seed)
+      .def_readwrite("test05_schedule_rng_seed", &TestSettings::test05_schedule_rng_seed)
+      .def_readwrite("use_token_latencies", &TestSettings::use_token_latencies)
       .def("FromConfig", &TestSettings::FromConfig, "FromConfig.");
 
   pybind11::enum_<LoggingMode>(m, "LoggingMode")
@@ -436,6 +443,11 @@ PYBIND11_MODULE(mlperf_loadgen, m) {
         pybind11::arg("audit_config_filename") = "audit.config");
   m.def("QuerySamplesComplete", &py::QuerySamplesComplete,
         "Called by the SUT to indicate that samples from some combination of"
+        "IssueQuery calls have finished.",
+        pybind11::arg("responses"),
+        pybind11::arg("response_cb") = ResponseCallback{});
+  m.def("TokensComplete", &py::TokensComplete,
+        "Called by the SUT to indicate that tokens from some combination of"
         "IssueQuery calls have finished.",
         pybind11::arg("responses"),
         pybind11::arg("response_cb") = ResponseCallback{});

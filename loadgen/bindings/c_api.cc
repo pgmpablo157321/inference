@@ -155,6 +155,22 @@ void QuerySamplesCompleteResponseCb(QuerySampleResponse* responses,
       });
 }
 
+void TokensComplete(QuerySampleResponse* responses,
+                          size_t response_count) {
+  mlperf::TokensComplete(responses, response_count);
+}
+
+void TokensCompleteResponseCb(QuerySampleResponse* responses,
+                                    size_t response_count,
+                                    ResponseCallback response_cb,
+                                    ClientData client_data) {
+  mlperf::TokensComplete(
+      responses, response_count,
+      [client_data, response_cb](QuerySampleResponse* response) {
+        response_cb(client_data, response);
+      });
+}
+
 void RegisterIssueQueryThread() { mlperf::RegisterIssueQueryThread(); }
 
 }  // namespace c

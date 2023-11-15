@@ -92,6 +92,10 @@ struct PerformanceSummary {
   void LogDetail(AsyncDetail& detail);
 };
 
+struct TokenPerformanceResults : PerformanceResult {
+  std::vector<std::vector<QuerySampleLatency>> token_latencies;
+};
+
 }  // namespace loadgen
 }  // namespace mlperf
 

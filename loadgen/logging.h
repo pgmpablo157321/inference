@@ -315,7 +315,11 @@ class AsyncLog {
   void RecordSampleCompletion(uint64_t sample_sequence_id,
                               PerfClock::time_point completion_time,
                               QuerySampleLatency latency);
+  void RecordTokenCompletion(uint64_t sample_sequence_id,
+                              PerfClock::time_point completion_time,
+                              QuerySampleLatency latency);
   std::vector<QuerySampleLatency> GetLatenciesBlocking(size_t expected_count);
+  std::vector<std::vector<QuerySampleLatency>> GetTokenLatencies(size_t expected_count);
   PerfClock::time_point GetMaxCompletionTime();
   QuerySampleLatency GetMaxLatencySoFar();
 
@@ -369,9 +373,11 @@ class AsyncLog {
   PerfClock::time_point scoped_end_;
 
   std::mutex latencies_mutex_;
+  std::mutex token_latencies_mutex_;
   std::condition_variable all_latencies_recorded_;
   uint64_t latencies_first_sample_sequence_id_ = 0;
   std::vector<QuerySampleLatency> latencies_;
+  std::vector<std::vector<QuerySampleLatency>> token_latencies_;
   QuerySampleLatency max_latency_ = 0;
   PerfClock::time_point max_completion_timstamp_;
   size_t latencies_recorded_ = 0;
@@ -404,6 +410,7 @@ class Logger {
   void RestartLatencyRecording(uint64_t first_sample_sequence_id,
                                size_t latencies_to_reserve);
   std::vector<QuerySampleLatency> GetLatenciesBlocking(size_t expected_count);
+  std::vector<std::vector<QuerySampleLatency>> GetTokenLatencies(size_t expected_count);
   PerfClock::time_point GetMaxCompletionTime();
   QuerySampleLatency GetMaxLatencySoFar();
 

@@ -330,6 +330,7 @@ void AsyncLog::RestartLatencyRecording(uint64_t first_sample_sequence_id,
   max_completion_timstamp_ = PerfClock::now();
   latencies_first_sample_sequence_id_ = first_sample_sequence_id;
   latencies_.reserve(latencies_to_reserve);
+  token_latencies_.reserve(latencies_to_reserve);
 }
 
 void AsyncLog::RecordSampleCompletion(uint64_t sample_sequence_id,
@@ -389,6 +390,60 @@ void AsyncLog::RecordSampleCompletion(uint64_t sample_sequence_id,
   }
 }
 
+void AsyncLog::RecordTokenCompletion(uint64_t sample_sequence_id,
+                                      PerfClock::time_point completion_time,
+                                      QuerySampleLatency latency) {
+  std::unique_lock<std::mutex> lock(token_latencies_mutex_);
+  //std::unique_lock<std::mutex> lock(latencies_mutex_);
+  //max_latency_ = std::max(max_latency_, latency);
+
+  //max_completion_timstamp_ =
+  //    std::max(max_completion_timstamp_, completion_time);
+
+  if (sample_sequence_id < latencies_first_sample_sequence_id_) {
+    // Call LogErrorSync here since this kind of error could result in a
+    // segfault in the near future.
+#if USE_NEW_LOGGING_FORMAT
+    std::stringstream ss;
+    ss << "Received completion for an old sample."
+       << " Min expected id: " << latencies_first_sample_sequence_id_
+       << " Actual id: " << sample_sequence_id;
+    MLPERF_LOG_ERROR_SYNC(GlobalLogger(), "error_runtime", ss.str());
+#else
+    GlobalLogger().LogErrorSync(
+        "Received completion for an old sample.", "Min expected id",
+        latencies_first_sample_sequence_id_, "Actual id", sample_sequence_id);
+#endif
+    return;
+  }
+
+  const size_t i = sample_sequence_id - latencies_first_sample_sequence_id_;
+  
+  // TODO: Refine this condition, it should be if latency[i] has been recorded
+  if (latencies_.size() > i){
+    if (latencies_[i] != 0){
+#if USE_NEW_LOGGING_FORMAT
+    MLPERF_LOG_ERROR_SYNC(GlobalLogger(), "error_runtime",
+                          "Attempted to record token latency after sample was completed");
+#else
+    GlobalLogger().LogErrorSync("Attempted to record token latency after sample was completed");
+#endif
+
+    // Return without recording the latency again to avoid potentially
+    // ending the test before the SUT is actually done, which could result
+    // in a segfault.
+    // If the SUT recorded the wrong sample, the test will hang and see
+    // the error above.
+    return;
+    }
+  }
+  if (token_latencies_.size() <= i) {
+    // TODO: Reserve in advance.
+    token_latencies_.resize(i + 1, std::vector<QuerySampleLatency>());
+  }
+  token_latencies_[i].push_back(latency);
+}
+
 std::vector<QuerySampleLatency> AsyncLog::GetLatenciesBlocking(
     size_t expected_count) {
   std::vector<QuerySampleLatency> latencies;
@@ -437,6 +492,12 @@ std::vector<QuerySampleLatency> AsyncLog::GetLatenciesBlocking(
   }
 
   return latencies;
+}
+
+std::vector<std::vector<QuerySampleLatency>> AsyncLog::GetTokenLatencies(size_t expected_count) {
+  std::vector<std::vector<QuerySampleLatency>> token_latencies;
+  token_latencies.swap(token_latencies_);
+  return token_latencies;
 }
 
 PerfClock::time_point AsyncLog::GetMaxCompletionTime() {
@@ -756,6 +817,10 @@ void Logger::RestartLatencyRecording(uint64_t first_sample_sequence_id,
 std::vector<QuerySampleLatency> Logger::GetLatenciesBlocking(
     size_t expected_count) {
   return async_logger_.GetLatenciesBlocking(expected_count);
+}
+std::vector<std::vector<QuerySampleLatency>> Logger::GetTokenLatencies(
+    size_t expected_count) {
+  return async_logger_.GetTokenLatencies(expected_count);
 }
 
 PerfClock::time_point Logger::GetMaxCompletionTime() {
