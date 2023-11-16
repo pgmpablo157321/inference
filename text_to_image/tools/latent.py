@@ -32,7 +32,7 @@ if __name__ == "__main__":
     width = 1024
     dtype = torch.float32
     seed = 0
-    generator = torch.Generator().manual_seed(seed)
+    generator = torch.Generator(device='cpu').manual_seed(seed)
     vae_scale_factor = 8
     scheduler = EulerDiscreteScheduler.from_pretrained(
         "stabilityai/stable-diffusion-xl-base-1.0", subfolder="scheduler"
