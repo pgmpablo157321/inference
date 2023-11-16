@@ -21,8 +21,7 @@ def create_latents(
     )
     latents = randn_tensor(shape, generator=generator, dtype=dtype)
 
-    # scale the initial noise by the standard deviation required by the scheduler
-    latents = latents * scheduler.init_noise_sigma
+
     return latents
 
 
