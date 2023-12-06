@@ -212,6 +212,7 @@ class RunnerBase:
         self.take_accuracy = False
         self.max_batchsize = max_batchsize
         self.result_timing = []
+        self.overhead_timing = []
 
     def handle_tasks(self, tasks_queue):
         pass
@@ -233,6 +234,7 @@ class RunnerBase:
             if self.take_accuracy:
                 self.post_process.add_results(processed_results)
             self.result_timing.append(time.time() - qitem.start)
+            s = time.time()
         except Exception as ex:  # pylint: disable=broad-except
             src = [self.ds.get_item_loc(i) for i in qitem.content_id]
             log.error("thread: failed on contentid=%s, %s", src, ex)
@@ -243,12 +245,14 @@ class RunnerBase:
             response = []
             for idx, query_id in enumerate(qitem.query_id):
                 response_array = array.array(
-                    "B", np.array(processed_results[idx], np.float32).tobytes()
+                    "B", np.array([[.0]], np.float32).tobytes()
                 )
                 response_array_refs.append(response_array)
                 bi = response_array.buffer_info()
                 response.append(lg.QuerySampleResponse(query_id, bi[0], bi[1]))
             lg.QuerySamplesComplete(response)
+            e = time.time()
+            self.overhead_timing.append(e-s)
 
     def enqueue(self, query_samples):
         idx = [q.index for q in query_samples]
@@ -474,6 +478,8 @@ def main():
     lg.DestroyQSL(qsl)
     lg.DestroySUT(sut)
 
+    print(f"mean overhead: {sum(runner.overhead_timing)/len(runner.overhead_timing)}")
+    print(runner.overhead_timing)
     #
     # write final results
     #
