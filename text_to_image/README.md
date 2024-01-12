@@ -98,7 +98,7 @@ python3 main.py --dataset "coco-1024" --dataset-path coco2014 --profile stable-d
 # Go to the benchmark folder
 cd $SD_FOLDER
 # Build the container
-docker build . -t sd_mlperf_inference
+docker build . -t sd_mlperf_inference -f dockerfile.gpu
 # Run the container
 docker run --rm -it --gpus=all -v $SD_FOLDER:/workspace sd_mlperf_inference bash
 ```
@@ -111,3 +111,10 @@ Add the `--accuracy` to the command to run the benchmark
 ```bash
 python3 main.py --dataset "coco-1024" --dataset-path coco2014 --profile stable-diffusion-xl-pytorch --accuracy --model-path model/ [--dtype <fp32, fp16 or bf16>] [--device <cuda or cpu>] [--time <time>] [--scenario <SingleStream, MultiStream, Server or Offline>]
 ```
+
+### Accuracy targets
+
+For this benchmark the following quality targets must be met
+
+- FID_SCORE between 23.01085758 and 23.95007626
+- CLIP_SCORE between 31.68631873 and 31.81331801
