@@ -105,11 +105,12 @@ def main():
     settings.offline_expected_qps = args.expected_qps
     settings.min_duration_ms = args.min_duration_ms
     settings.use_token_latencies = True
+    audit_config = "audit.config"
 
     sut = mlperf_loadgen.ConstructSUT(issue_query, flush_queries)
     qsl = mlperf_loadgen.ConstructQSL(
         1024, 128, load_samples_to_ram, unload_samples_from_ram)
-    mlperf_loadgen.StartTest(sut, qsl, settings)
+    mlperf_loadgen.StartTest(sut, qsl, settings, audit_config)
     mlperf_loadgen.DestroyQSL(qsl)
     mlperf_loadgen.DestroySUT(sut)
 
