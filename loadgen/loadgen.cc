@@ -405,6 +405,7 @@ std::vector<QueryMetadata> GenerateQueries(
       (prev_timestamp < gen_duration) && (scenario != TestScenario::Offline))
     {
       min_queries += loaded_samples.size();
+      std::cout << min_queries << "\n";
     }
   }
 

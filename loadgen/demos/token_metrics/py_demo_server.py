@@ -86,12 +86,13 @@ def get_args():
     parser.add_argument("--target-qps", type=int, default=100)
     parser.add_argument("--target-latency-ns", type=int, default=100000000)
     parser.add_argument("--min-query-count", type=int, default=100)
-    parser.add_argument("--min-duration-ms", type=int, default=30000)
+    parser.add_argument("--min-duration-ms", type=int, default=5000)
     return parser.parse_args()
 
 def main():
     args = get_args()
     settings = mlperf_loadgen.TestSettings()
+    settings.FromConfig("mlperf.conf", "llama2-70b", "Server")
     settings.scenario = mlperf_loadgen.TestScenario.Server
     if args.mode == "performance":
         settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
@@ -99,7 +100,7 @@ def main():
         settings.mode = mlperf_loadgen.TestMode.AccuracyOnly
     settings.server_target_qps = args.target_qps
     settings.server_target_latency_ns = args.target_latency_ns
-    settings.min_query_count = args.min_query_count
+    #settings.min_query_count = args.min_query_count
     settings.min_duration_ms = args.min_duration_ms
     settings.use_token_latencies = True
 
