@@ -49,14 +49,13 @@ class StopAfterSequence(LogitsProcessor):
             super().__init__()
             assert(len(stop_seq) >= 1)
             self.device = device
-            self.stop_seq = torch.tensor(stop_seq).to(device)
+            self.stop_seq = torch.tensor(stop_seq, dtype=torch.long).to(device)
             self.stop_seq_length = len(stop_seq)
             self.eos_token_id = eos_token_id
 
-        def check_stop_condition(self, input_ids):
-            stop_condition_met = (input_ids[:, -1] == self.stop_seq[-1])
-            for i in range(-1, -self.stop_seq_length-1, -1):
-                stop_condition_met &= (input_ids[:, i] == self.stop_seq[i])
+        def check_stop_condition(self, input_ids: torch.LongTensor):
+            stop_condition_met = (input_ids[:, -self.stop_seq_length:] == self.stop_seq).all()
+            print(stop_condition_met)
             return stop_condition_met
         
         def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
