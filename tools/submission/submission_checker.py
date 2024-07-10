@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import sys
+import shutil
 
 from glob import glob
 
@@ -664,6 +665,8 @@ class Config:
         extra_model_benchmark_map,
         ignore_uncommited=False,
         skip_power_check=False,
+        check_sdxl_images=False,
+        remove_sdxl_images=False,
     ):
         self.base = MODEL_CONFIG.get(version)
         self.extra_model_benchmark_map = extra_model_benchmark_map
@@ -680,6 +683,8 @@ class Config:
         self.optional = None
         self.ignore_uncommited = ignore_uncommited
         self.skip_power_check = skip_power_check
+        self.check_sdxl_images = check_sdxl_images
+        self.remove_sdxl_images = remove_sdxl_images
 
     def set_type(self, submission_type):
         if submission_type == "datacenter":
@@ -835,6 +840,16 @@ def get_args():
         "--scenarios-to-skip",
         help="Delimited list input of scenarios to skip. i.e. if you only have Offline results, pass in 'Server'",
         type=str
+    )
+    parser.add_argument(
+        "--check-sdxl-images",
+        action="store_true",
+        help="Check the sdxl images",
+    )
+    parser.add_argument(
+        "--remove-sdxl-images",
+        action="store_true",
+        help="Remove the sdxl images",
     )
     args = parser.parse_args()
     return args
@@ -1967,12 +1982,20 @@ def check_results_dir(
                             )
                             if mlperf_model in REQUIRED_ACC_BENCHMARK:
                                 if config.version in REQUIRED_ACC_BENCHMARK[mlperf_model]:
-                                    extra_files_pass, missing_files = check_extra_files(acc_path, REQUIRED_ACC_BENCHMARK[mlperf_model][config.version])
-                                    if not extra_files_pass:
-                                        log.error(
-                                            "%s expected to have the following extra files (%s)", acc_path, missing_files
-                                        )
-                                        accuracy_is_valid = False
+                                    if mlperf_model != "stable-diffusion-xl" or config.check_sdxl_images:
+                                        extra_files_pass, missing_files = check_extra_files(acc_path, REQUIRED_ACC_BENCHMARK[mlperf_model][config.version])
+                                        log.info("HERE!")
+                                        if not extra_files_pass:
+                                            log.error(
+                                                "%s expected to have the following extra files (%s)", acc_path, missing_files
+                                            )
+                                            accuracy_is_valid = False
+                                    if mlperf_model == "stable-diffusion-xl" and config.remove_sdxl_images:
+                                        # Remove the stable-diffusion-xl generated images if requested
+                                        for dir in REQUIRED_ACC_BENCHMARK[mlperf_model][config.version].keys():
+                                            if dir == "images":
+                                                shutil.rmtree(os.path.join(acc_path, dir))
+                                        pass
                             if not accuracy_is_valid and not is_closed_or_network:
                                 if debug:
                                     log.warning(
@@ -2649,6 +2672,8 @@ def main():
         args.extra_model_benchmark_map,
         ignore_uncommited=args.submission_exceptions,
         skip_power_check=args.skip_power_check,
+        check_sdxl_images=args.check_sdxl_images,
+        remove_sdxl_images=args.remove_sdxl_images,
     )
 
     if args.scenarios_to_skip:
