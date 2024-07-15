@@ -60,6 +60,7 @@ class Dataset():
         self.input_lens = []
         self.attention_masks = []
         self.dataset_names = []
+        self.original_ids = list(processed_data.index)
 
         for ids in input_tokens:
             input_ids = torch.tensor(ids, dtype=torch.int32).view(
@@ -98,7 +99,8 @@ class Dataset():
         fname = "q" + "_".join([str(i) for i in query_id_list])
         fname = f"run_outputs/{fname}.pkl"
         with open(fname, mode='wb') as f:
-            d = {"query_ids": query_id_list,
+            idx = [self.original_ids[i] for i in query_id_list]
+            d = {"query_ids": idx,
                  "outputs": output_seq}
             print(f"Saving outputs to {fname}")
             pickle.dump(d, f)
