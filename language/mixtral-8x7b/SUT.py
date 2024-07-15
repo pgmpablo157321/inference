@@ -33,36 +33,67 @@ gen_kwargs = {
 }
 
 class StopAfterSequence(LogitsProcessor):
-        """Logits processor (to use with HuggingFace `generate()` method :
-        https://huggingface.co/docs/transformers/v4.24.0/en/main_classes/
-        text_generation#transformers.generation_utils.GenerationMixin).
+    """Logits processor (to use with HuggingFace `generate()` method :
+    https://huggingface.co/docs/transformers/v4.24.0/en/main_classes/
+    text_generation#transformers.generation_utils.GenerationMixin).
 
-        This logits processor makes that when the model generates a specified
-        stopping sequence, it stops generating new tokens
+    This logits processor makes that when the model generates a specified
+    stopping sequence, it stops generating new tokens
 
-        Args:
-            stop_seq (List[int]): ID of the space token.
-            eos_token_id (int): ID of the EOS token.
-            device (str): Device that the model is running
-        """
-        def __init__(self, eos_token_id: int, stop_seq: List[int] = [13, 13940, 28832, 13], device="cpu"):
-            super().__init__()
-            assert(len(stop_seq) >= 1)
-            self.device = device
-            self.stop_seq = torch.tensor(stop_seq, dtype=torch.long).to(device)
-            self.stop_seq_length = len(stop_seq)
-            self.eos_token_id = eos_token_id
+    Args:
+        stop_seq (List[int]): ID of the space token.
+        eos_token_id (int): ID of the EOS token.
+        device (str): Device that the model is running
+    """
+    def __init__(self, eos_token_id: int, stop_seq: List[int] = [13, 13940, 28832, 13], device="cpu"):
+        super().__init__()
+        assert(len(stop_seq) >= 1)
+        self.device = device
+        self.stop_seq = torch.tensor(stop_seq, dtype=torch.long).to(device)
+        self.stop_seq_length = len(stop_seq)
+        self.eos_token_id = eos_token_id
 
-        def check_stop_condition(self, input_ids: torch.LongTensor):
-            stop_condition_met = (input_ids[:, -self.stop_seq_length:] == self.stop_seq).all(dim=1)
-            return stop_condition_met
-        
-        def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
-            if input_ids.size(1) > self.stop_seq_length:
-                forced_eos = torch.full((scores.size(1),), -float("inf")).to(self.device)
-                forced_eos[self.eos_token_id] = 0
-                scores[self.check_stop_condition(input_ids)] = forced_eos
-            return scores
+    def check_stop_condition(self, input_ids: torch.LongTensor):
+        stop_condition_met = (input_ids[:, -self.stop_seq_length:] == self.stop_seq).all(dim=1)
+        return stop_condition_met
+    
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+        if input_ids.size(1) > self.stop_seq_length:
+            forced_eos = torch.full((scores.size(1),), -float("inf")).to(self.device)
+            forced_eos[self.eos_token_id] = 0
+            scores[self.check_stop_condition(input_ids)] = forced_eos
+        return scores
+    
+
+class EnforceLength(LogitsProcessor):
+    """Logits processor (to use with HuggingFace `generate()` method :
+    https://huggingface.co/docs/transformers/v4.24.0/en/main_classes/
+    text_generation#transformers.generation_utils.GenerationMixin).
+
+    This logits processor makes that when the model generates a specified
+    stopping sequence, it stops generating new tokens
+
+    Args:
+        stop_seq (List[int]): ID of the space token.
+        eos_token_id (int): ID of the EOS token.
+        device (str): Device that the model is running
+    """
+    def __init__(self, eos_token_id: int, enforced_length: int, initial_size: int = 1024, device="cpu"):
+        super().__init__()
+        assert(enforced_length >= 1)
+        self.device = device
+        self.enforced_length = enforced_length
+        self.eos_token_id = eos_token_id
+        self.initial_size = initial_size
+    
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
+        if input_ids.size(1) < self.initial_size + self.enforced_length:
+            print(scores)
+            print(scores[:, self.eos_token_id])
+            scores[0, self.eos_token_id] = -float("inf")
+            print(scores)
+            print(scores[:, self.eos_token_id])
+        return scores
 
 
 class FirstTokenStreamer(BaseStreamer):
@@ -232,11 +263,20 @@ class SUT():
                 assert input_ids_tensor.shape[0] <= self.batch_size
 
                 tik2 = time.time()
-                logits_processor = LogitsProcessorList([StopAfterSequence(self.tokenizer.eos_token_id, device=self.device)])
                 for i in range(len(input_ids_tensor)):
                     ids, masks, dataset = input_ids_tensor[i:i+1], input_masks_tensor[i:i+1], input_dataset[i]
                     pred_output_tokens = []
                     if dataset == "MBXP":
+                        logits_processor = LogitsProcessorList([StopAfterSequence(self.tokenizer.eos_token_id, device=self.device)])
+                        out = self.model.generate(
+                            input_ids=ids,
+                            attention_mask=masks,
+                            pad_token_id=self.tokenizer.pad_token_id,
+                            logits_processor=logits_processor,
+                            **gen_kwargs
+                        )
+                    elif dataset == "OpenOrca":
+                        logits_processor = LogitsProcessorList([EnforceLength(self.tokenizer.eos_token_id, enforced_length=2, initial_size = max_seq_len, device=self.device)])
                         out = self.model.generate(
                             input_ids=ids,
                             attention_mask=masks,
@@ -419,6 +459,16 @@ class SUTServer(SUT):
                                         logits_processor=logits_processor,
                                         **gen_kwargs
                                         )
+            elif dataset == "OpenOrca":
+                
+                logits_processor = LogitsProcessorList([EnforceLength(self.tokenizer.eos_token_id, enforced_length=2, initial_size = self.data_object.input_lens[qitem.index], device=self.device)])
+                out = self.model.generate(
+                    input_ids=input_ids_tensor,
+                    attention_mask=input_masks_tensor,
+                    pad_token_id=self.tokenizer.pad_token_id,
+                    logits_processor=logits_processor,
+                    **gen_kwargs
+                )
             else:
                 _ = self.model.generate(input_ids=input_ids_tensor,
                                         attention_mask=input_masks_tensor,
