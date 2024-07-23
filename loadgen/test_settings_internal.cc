@@ -117,6 +117,9 @@ TestSettingsInternal::TestSettingsInternal(
       break;
   }
 
+  std::cout << "server_ttft_latency: "<< server_ttft_latency <<"\n";
+  std::cout << "server_tpot_latency: "<< server_tpot_latency <<"\n";
+
   // Performance Sample Count: TestSettings override QSL ->
   // PerformanceSampleCount
   performance_sample_count = (requested.performance_sample_count_override == 0)

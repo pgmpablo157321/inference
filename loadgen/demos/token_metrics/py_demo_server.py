@@ -47,18 +47,24 @@ def unload_samples_from_ram(query_samples):
     return
 
 
-def process_query_async(query_samples):
+def complete_token(s, response_token_data, response_token_size):
+    time.sleep(.02)
+    mlperf_loadgen.FirstTokenComplete([mlperf_loadgen.QuerySampleResponse(s.id, response_token_data, response_token_size)])
+
+
+
+def issue_query(query_samples):
     """Processes the list of queries."""
     query_responses = []
     for s in query_samples:
         response_array = np.array(responses[s.index], np.int32)
         token = response_array[0]
-        time.sleep(.0002)
         response_token = array.array("B", token.tobytes())
         response_token_info = response_token.buffer_info()
         response_token_data = response_token_info[0]
         response_token_size = response_token_info[1] * response_token.itemsize
-        mlperf_loadgen.FirstTokenComplete([mlperf_loadgen.QuerySampleResponse(s.id, response_token_data, response_token_size)])
+        threading.Thread(target=complete_token,
+                     args=[s, response_token_data, response_token_size]).start()
         time.sleep(.02)
         n_tokens = len(response_array)
         response_array = array.array("B", response_array.tobytes())
@@ -70,11 +76,7 @@ def process_query_async(query_samples):
             mlperf_loadgen.QuerySampleResponse(
                 s.id, response_data, response_size, n_tokens))
     mlperf_loadgen.QuerySamplesComplete(query_responses)
-
-
-def issue_query(query_samples):
-    threading.Thread(target=process_query_async,
-                     args=[query_samples]).start()
+    
 
 
 def flush_queries():

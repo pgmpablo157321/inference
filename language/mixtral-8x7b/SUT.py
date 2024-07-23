@@ -346,7 +346,7 @@ class SUT():
 
 class SUTServer(SUT):
     def __init__(self, model_path=None, dtype="bfloat16", device="cpu",
-                 total_sample_count=24576, dataset_path=None, workers=1):
+                 total_sample_count=24576, dataset_path=None, workers=1, *args, **kwargs):
 
         super().__init__(
             model_path=model_path,
@@ -385,6 +385,7 @@ class SUTServer(SUT):
             response_data = array.array("B", np.array(
                 first_tokens, np.float32).tobytes())
             bi = response_data.buffer_info()
+            print(first_tokens)
             response = [lg.QuerySampleResponse(response_id, bi[0], bi[1])]
             lg.FirstTokenComplete(response)
 

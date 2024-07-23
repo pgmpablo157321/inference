@@ -90,6 +90,7 @@ constexpr size_t kTlsLogReservedEntryCount = 1024;
 
 constexpr auto kInvalidLatency = std::numeric_limits<QuerySampleLatency>::min();
 constexpr auto nTokenInvalid = std::numeric_limits<int64_t>::min();
+constexpr auto emptyRecord= mlperf::logging::LogBinaryAsHexString{};
 
 }  // namespace
 
@@ -296,6 +297,8 @@ void AsyncLog::LogAccuracy(uint64_t seq_id, const QuerySampleIndex qsl_idx,
   }
   else {
     const size_t i = seq_id - latencies_first_sample_sequence_id_;
+    std::cout << "Logging Accuracy: " << i << "\n";
+    
     LogArgs(accuracy_out_, "seq_id", seq_id, "qsl_idx", qsl_idx, "data",
           response, "token_data", token_records_[i], "token_count", n_tokens);
   }
@@ -307,8 +310,9 @@ void AsyncLog::LogAccuracy(uint64_t seq_id, const QuerySampleIndex qsl_idx,
 void AsyncLog::CacheToken(uint64_t seq_id, const LogBinaryAsHexString& response){
   std::unique_lock<std::mutex> lock(token_record_mutex_);
   const size_t i = seq_id - latencies_first_sample_sequence_id_;
+  std::cout << "Caching First Token: " << i << "\n";
   if (token_records_.size() <= i) {
-    token_records_.resize(i + 1);
+    token_records_.resize(i + 1, emptyRecord);
   }
   token_records_[i] = response;
 }
