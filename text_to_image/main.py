@@ -334,13 +334,7 @@ def main():
     log.info(args)
 
     # find backend
-    backend = get_backend(
-        args.backend,
-        precision=args.dtype,
-        device=args.device,
-        model_path=args.model_path,
-        batch_size=args.max_batchsize,
-    )
+    backend = get_backend(args.backend, precision=args.dtype, device=args.device, model_path=args.model_path, batch_size=args.max_batchsize)
     if args.dtype == "fp16":
         dtype = torch.float16
     elif args.dtype == "bf16":
