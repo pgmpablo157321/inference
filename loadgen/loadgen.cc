@@ -316,6 +316,8 @@ std::vector<QueryMetadata> GenerateQueries(
   // When sample_concatenate_permutation is turned on, pad to a multiple of the
   // complete dataset to ensure fairness.
   auto enable_equal_issue = settings.sample_concatenate_permutation;
+  std::cout << "loaded_samples.size()" << loaded_samples.size() << "\n";
+  std::cout << "samples_per_query" << samples_per_query << "\n";
   if (mode != TestMode::AccuracyOnly && enable_equal_issue) {
     if (scenario == TestScenario::Offline &&
         samples_per_query % loaded_samples.size() != 0) {
@@ -332,6 +334,9 @@ std::vector<QueryMetadata> GenerateQueries(
     }
   }
 
+  std::cout << "loaded_samples.size()" << loaded_samples.size() << "\n";
+  std::cout << "samples_per_query" << samples_per_query << "\n";
+
   std::vector<QuerySampleIndex> samples(samples_per_query);
   std::chrono::nanoseconds timestamp(0);
   std::chrono::nanoseconds prev_timestamp(0);
@@ -340,6 +345,7 @@ std::vector<QueryMetadata> GenerateQueries(
 
   while (prev_timestamp < gen_duration || queries.size() < min_queries) {
     if (kIsMultiStream) {
+      std::cout << "queries.size()" << queries.size() << "\n";
       QuerySampleIndex sample_i = settings.performance_issue_unique
                                       ? sample_distribution_unique(sample_rng)
                                   : settings.performance_issue_same
