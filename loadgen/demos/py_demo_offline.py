@@ -37,7 +37,7 @@ def unload_samples_from_ram(query_samples):
 
 
 def issue_query(query_samples):
-    print(f"len(query_samples): {len(query_samples)}")
+    print(f"Queries sent to the SUT: {len(query_samples)}")
     responses = []
     samples_to_complete = query_samples
     for s in samples_to_complete:
@@ -55,14 +55,13 @@ def main(argv):
     settings.FromConfig("user.conf", "demo", "Offline")
     settings.scenario = mlperf_loadgen.TestScenario.Offline
     settings.mode = mlperf_loadgen.TestMode.PerformanceOnly
-    settings.offline_expected_qps = 84000
-    print("HERE")
+    settings.offline_expected_qps = 80010
+    settings.min_duration_ms = 10000
 
     sut = mlperf_loadgen.ConstructSUT(issue_query, flush_queries)
     qsl = mlperf_loadgen.ConstructQSL(
         1024, 128, load_samples_to_ram, unload_samples_from_ram
     )
-    print("HERE")
     mlperf_loadgen.StartTest(sut, qsl, settings)
     mlperf_loadgen.DestroyQSL(qsl)
     mlperf_loadgen.DestroySUT(sut)

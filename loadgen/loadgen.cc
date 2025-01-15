@@ -276,6 +276,7 @@ std::vector<QueryMetadata> GenerateQueries(
   size_t min_queries = settings.min_query_count;
 
   size_t samples_per_query = settings.samples_per_query;
+
   if (mode == TestMode::AccuracyOnly && scenario == TestScenario::Offline) {
     samples_per_query = loaded_sample_set.sample_distribution_end;
   }
@@ -316,8 +317,8 @@ std::vector<QueryMetadata> GenerateQueries(
   // When sample_concatenate_permutation is turned on, pad to a multiple of the
   // complete dataset to ensure fairness.
   auto enable_equal_issue = settings.sample_concatenate_permutation;
-  std::cout << "loaded_samples.size()" << loaded_samples.size() << "\n";
-  std::cout << "samples_per_query" << samples_per_query << "\n";
+  std::cout << "Dataset Size: " << loaded_samples.size() << "\n";
+  std::cout << "samples_per_query: " << samples_per_query << "\n";
   if (mode != TestMode::AccuracyOnly && enable_equal_issue) {
     if (scenario == TestScenario::Offline &&
         samples_per_query % loaded_samples.size() != 0) {
@@ -334,8 +335,8 @@ std::vector<QueryMetadata> GenerateQueries(
     }
   }
 
-  std::cout << "loaded_samples.size()" << loaded_samples.size() << "\n";
-  std::cout << "samples_per_query" << samples_per_query << "\n";
+  std::cout << "Dataset Size: " << loaded_samples.size() << "\n";
+  std::cout << "Padded samples_per_query: " << samples_per_query << "\n";
 
   std::vector<QuerySampleIndex> samples(samples_per_query);
   std::chrono::nanoseconds timestamp(0);
@@ -426,7 +427,7 @@ std::vector<QueryMetadata> GenerateQueries(
     }
   }
 
-  LogDetail([count = queries.size(), spq = settings.samples_per_query,
+  LogDetail([count = queries.size(), spq = samples_per_query,
              duration = timestamp.count()](AsyncDetail& detail) {
 #if USE_NEW_LOGGING_FORMAT
     MLPERF_LOG(detail, "generated_query_count", count);
@@ -508,6 +509,7 @@ PerformanceResult IssueQueries(SystemUnderTest* sut,
   const auto ran_out_of_generated_queries = state.ran_out_of_generated_queries;
   const auto queries_issued = state.queries_issued;
   const auto expected_latencies = state.expected_latencies;
+  std::cout << "expected_latencies: " << expected_latencies << "\n";
 
   // Let the SUT know it should not expect any more queries.
   sut->FlushQueries();
