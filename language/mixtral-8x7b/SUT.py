@@ -30,11 +30,12 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("Mixtral-8x7B-Instruct-v0.1")
 
 gen_kwargs = {
-    "early_stopping": True,
-    "max_new_tokens": 1024,
+    # "min_new_tokens": 1,
     "min_new_tokens": 2,
-    "num_beams": 1,
+    "max_new_tokens": 1024,
     "do_sample": False,
+    "temperature": None,
+    "top_p": None,
 }
 
 
@@ -146,6 +147,7 @@ class SUT:
 
         self.model_path = model_path or "mistralai/Mixtral-8x7B-Instruct-v0.1"
         self.device = device
+        self.ans = {}
 
         if not batch_size:
             if device == "cpu":
@@ -205,6 +207,9 @@ class SUT:
 
         for worker in self.worker_threads:
             worker.join()
+        import json
+        with open("RI_processed.json") as f:
+            json.dump(self.ans, f)
 
     def process_queries(self):
         """Processor of the queued queries. User may choose to add batching logic"""
@@ -315,6 +320,7 @@ class SUT:
                 )
 
             for i in range(len(qitem)):
+                self.ans[qitem.index] = processed_output[i].tolist()
                 n_tokens = processed_output[i].shape[0]
                 response_array = array.array(
                     "B", processed_output[i].tobytes())
