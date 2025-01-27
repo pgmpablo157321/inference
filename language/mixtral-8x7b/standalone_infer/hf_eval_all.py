@@ -39,21 +39,14 @@ def run_infer(df, ckpt_path, bs):
     """
     device = "cuda"  # the device to load the model onto
 
-    # Load the model from local if possible.
-    model_path = Path(ckpt_path)
-    if not model_path.exists():
-        raise RuntimeError(
-            f"{ckpt_path} not existed. Please download the checkpoint from mlcommon")
-
     tokenizer = AutoTokenizer.from_pretrained(
-        model_path, padding_side="left", trust_remote_code=True)
+        ckpt_path, padding_side="left", trust_remote_code=True)
     model = AutoModelForCausalLM.from_pretrained(
-        model_path, device_map="auto", trust_remote_code=True)
+        ckpt_path, device_map="auto", trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
     tokenizer.pad_token_id = tokenizer.eos_token_id
 
-    # gen parameter. We stop at 1024. Starting from v5.0, min_token is set to
-    # 2 to avoid 0-output issue
+    # gen parameter. We stop at 1024. Starting from v5.0, min_token is set to 2 to avoid 0-output issue
     gen_kwargs = {
         # "min_new_tokens": 1,
         "min_new_tokens": 2,
@@ -73,6 +66,9 @@ def run_infer(df, ckpt_path, bs):
     output_tokens = []
     output_tokens_lens = []
     output_texts = []
+    output_raw = []
+    input_raw = []
+    input_raw_masks = []
 
     tic = time.time()
     for idx in range(0, len(df), BS):
@@ -82,11 +78,9 @@ def run_infer(df, ckpt_path, bs):
         eidx = min(sidx + BS, len(df))
 
         # We use batch_encode_plus for batch inference.
-        # Note 9/29/2024: Mixtral changed its tokenizer in Jun. Using the Feb
-        # 29 2024 version.
+        # Note 9/29/2024: Mixtral changed its tokenizer in Jun. Using the Feb 29 2024 version.
         batch_texts = df['input'][sidx:eidx].tolist()
-        batch_ids = tokenizer.batch_encode_plus(
-            batch_texts, return_tensors="pt", padding=True)
+        batch_ids = tokenizer.batch_encode_plus(batch_texts, return_tensors="pt", padding=True)
         # tok_input_length = batch_ids['attention_mask'].sum(
         #     axis=1).to(torch.int32).tolist()
         # input_tokens_lens += tok_input_length
@@ -98,11 +92,15 @@ def run_infer(df, ckpt_path, bs):
         tok_input_length = [len(seq) for seq in tok_input_id]
         input_tokens_lens += tok_input_length
 
+        for i in range(len(batch_ids['input_ids'])):
+            input_raw.append(batch_ids['input_ids'][i].cpu().numpy().tolist())
+            input_raw_masks.append(batch_ids['attention_mask'][i].cpu().numpy().tolist())
         batch_ids = batch_ids.to(device)
         _, length = batch_ids.input_ids.shape
         outputs = model.generate(**batch_ids, num_return_sequences=1,
-                                 **gen_kwargs)
-
+                                **gen_kwargs)
+        for output in outputs:
+            output_raw.append(output[length:].cpu().tolist())
         output_ids = outputs[:, length:].cpu().tolist()
         output_tokens += output_ids
 
@@ -125,18 +123,20 @@ def run_infer(df, ckpt_path, bs):
     output_df["infer_ref_output"] = output_texts
     output_df["infer_tok_ref_output"] = output_tokens
     output_df["infer_tok_ref_output_length"] = output_tokens_lens
+    output_df["output_raw"] = output_raw
+    output_df["input_raw"] = input_raw
+    output_df["input_raw_masks"] = input_raw_masks
 
     # output_df.to_pickle(f"mixtral_8x7b_all15k_{len(output_tokens)}_BS{BS}_greedy_reference_fp16_mintoken1.pkl")
 
     return output_df
 
-
-def trim_twos(df):
+def trim_eos(df, eos = 2):
     # Remove all trailing 2s except for 1
     def remove_trailing_twos(lst):
         count = 0
         for num in reversed(lst):
-            if num == 2:
+            if num == eos or num == 0:
                 count += 1
             else:
                 break
@@ -149,18 +149,15 @@ def trim_twos(df):
     df['tok_ref_output_len'] = df['tok_ref_output'].apply(len)
     return df
 
-
-def mbxp_stop(df):
-    stop_tokens = [13, 13940, 28832, 13]
-
+def mbxp_stop(df, stop_tokens = [13, 13940, 28832, 13]):
+    stop_tokens = stop_tokens
     def modify_list(lst):
         for i in range(len(lst) - len(stop_tokens) + 1):
-            if lst[i:i + len(stop_tokens)] == stop_tokens:
-                return lst[:i + len(stop_tokens)]
+            if lst[i:i+len(stop_tokens)] == stop_tokens:
+                return lst[:i+len(stop_tokens)]
         return lst
 
-    df.loc[df['dataset'] == 'MBXP', 'infer_tok_ref_output'] = df[df['dataset']
-                                                                 == 'MBXP']['infer_tok_ref_output'].apply(modify_list)
+    df.loc[df['dataset'] == 'MBXP', 'infer_tok_ref_output'] = df[df['dataset'] == 'MBXP']['infer_tok_ref_output'].apply(modify_list)
     df['trim_lengths'] = df['infer_tok_ref_output'].apply(len)
     return df
 
@@ -194,8 +191,17 @@ if __name__ == "__main__":
     df = pd.read_pickle(args.input_pkl)
     df = run_infer(df, args.checkpoint_path, args.batch_size)
 
-    df = trim_twos(df)
+    df = trim_eos(df)
     df = mbxp_stop(df)
     df = fix_name(df)
+    import json
+    with open("SI_raw_output.json", "w+") as f:
+        json.dump(df['output_raw'].reset_index(drop=True).to_dict(), f, sort_keys=True, indent=2)
+    with open("SI_postprocessed.json", "w+") as f:
+        json.dump(df['tok_ref_output'].reset_index(drop=True).to_dict(), f, sort_keys=True, indent=2)
+    with open("SI_input.json", "w+") as f:
+        json.dump(df['input_raw'].reset_index(drop=True).to_dict(), f, sort_keys=True, indent=2)
+    with open("SI_input_mask.json", "w+") as f:
+        json.dump(df['input_raw_masks'].reset_index(drop=True).to_dict(), f, sort_keys=True, indent=2)
 
     df.to_pickle(args.output_pkl)
