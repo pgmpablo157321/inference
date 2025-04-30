@@ -11,6 +11,7 @@ import backend
 class BackendPytorchNative(backend.Backend):
     def __init__(self):
         super(BackendPytorchNative, self).__init__()
+        self.i = 0
         self.sess = None
         self.model = None
         self.device = "cuda:0" if torch.cuda.is_available() else "cpu"
@@ -51,6 +52,8 @@ class BackendPytorchNative(backend.Backend):
         return self
 
     def predict(self, feed):
+        self.i += 1
+        print(self.i)
         key = [key for key in feed.keys()][0]
         feed[key] = torch.tensor(feed[key]).float().to(self.device)
         with torch.no_grad():

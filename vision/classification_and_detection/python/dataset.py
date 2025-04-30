@@ -61,12 +61,15 @@ class Dataset:
         raise NotImplementedError("Dataset:get_list")
 
     def load_query_samples(self, sample_list):
+        print(f"Loading {len(sample_list)} samples")
         self.image_list_inmemory = {}
         for sample in sample_list:
             self.image_list_inmemory[sample], _ = self.get_item(sample)
         self.last_loaded = time.time()
 
     def unload_query_samples(self, sample_list):
+        if sample_list is not None:
+            print(f"Unloading {len(sample_list)} samples")
         if sample_list:
             for sample in sample_list:
                 if sample in self.image_list_inmemory:
